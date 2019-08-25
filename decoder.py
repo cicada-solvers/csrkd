@@ -60,8 +60,9 @@ if __name__ == "__main__":
         if char in runes:
             filtered_key += char
             cipher_key = filtered_key
-    for cycle in range(8492, len(cipher_key)):
+    for cycle in range(15930, len(cipher_key)):
         cipher_key = cipher_key[cycle:]
+        print(len(cipher_key))
         cipher_key = generateKey(pages, cipher_key)
             
         decrypted_pages = []
