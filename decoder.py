@@ -77,9 +77,9 @@ def decoder(minrange, maxrange, filtered_text, filtered_key, runes, letters, d):
     #change the first number in range if you want to start from a different cycle
 
     for cycle in range(minrange, maxrange):
-        my_file = Path("/data_normal_key/" + str(cycle) + ".txt")
-        if my_file.is_file():
-            return
+        my_file = Path("data_normal_key/" + str(cycle) + ".txt")
+        if my_file.is_file() is True:
+            pass
         else:
             cipher_key = filtered_key[cycle:]
             cipher_key = generateKey(filtered_text, cipher_key)
