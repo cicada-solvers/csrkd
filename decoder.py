@@ -53,6 +53,7 @@ def best_match(i, s, cost):
     return min((c + wordcost.get(s[i-k-1:i], 9e999), k+1) for k,c in candidates)
 
 def infer_spaces(s):
+
     # Build the cost array.
     cost = [0]
     for i in range(1,len(s)+1):
@@ -81,7 +82,7 @@ def decoder(minrange, maxrange, filtered_text, filtered_key, runes, letters, d):
             return
         else:
             cipher_key = filtered_key[cycle:]
-            cipher_key = generateKey(filtered_text, filtered_key)
+            cipher_key = generateKey(filtered_text, cipher_key)
 
             decrypted_pages = []
             idx = 0
