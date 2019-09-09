@@ -9,29 +9,38 @@ from pathlib import Path
 #Read in the dictionary for english check in the end
 d = enchant.Dict("en_US")
 
-#Threading
+#Number of threads to use
 threads = 4
+
+#Choose key mode (0 = normal key, 1 = reversed key)
+reverse_mode = 0
 
 #Runes and corresponding letters
 runes = ['ᚠ', 'ᚢ', 'ᚦ', 'ᚩ', 'ᚱ', 'ᚳ', 'ᚷ', 'ᚹ', 'ᚻ', 'ᚾ', 'ᛁ', 'ᛄ', 'ᛇ', 'ᛈ', 'ᛉ', 'ᛋ', 'ᛏ', 'ᛒ', 'ᛖ', 'ᛗ', 'ᛚ', 'ᛝ', 'ᛟ', 'ᛞ', 'ᚪ', 'ᚫ', 'ᚣ', 'ᛡ', 'ᛠ']
-letters = ['F', 'U', 'TH', 'O', 'R', 'K', 'G', 'W', 'H', 'N', 'I', 'J', 'EO', 'P', 'X', 'Z', 'T', 'B', 'E', 'M', 'L', 'ING', 'OE', 'D', 'A', 'AE', 'Y', 'IO', 'EA']
+letters = ['F', 'U', 'TH', 'O', 'R', 'C', 'G', 'W', 'H', 'N', 'I', 'J', 'EO', 'P', 'X', 'S', 'T', 'B', 'E', 'M', 'L', 'ING', 'OE', 'D', 'A', 'AE', 'Y', 'IO', 'EA']
 
 #LP text in runes
-cipher = open('pages.txt', encoding='utf-8').read()
+cipher = open('cipher_text.txt', encoding='utf-8').read()
 
 #Red Book LP, thanks mortlach
 key = open('cipher_key.txt', encoding='utf-8').read()
 
-#Space estimation
+#Space estimation stuff
 words = open("words.txt").read().split()
 wordcost = dict((k, log((i+1)*log(len(words)))) for i,k in enumerate(words))
 maxword = max(len(x) for x in words)
 
+#Reverse key if reverse_mode is enabled
+if reverse_mode == 0:
+    pass
+else:
+    key = "".join(reversed(key))
+
 #Filter the LP (no spaces, only runes)
-filtered_text = []
+filtered_cipher = []
 for char in cipher:
     if char in runes:
-        filtered_text += char
+        filtered_cipher += char
 
 #Filter the key (Red Book LP, no spaces, only runes, using mortlach's rune version)
 filtered_key = []
@@ -40,10 +49,10 @@ for char in key:
         filtered_key += char
 
 #Generate key function
-def generateKey(filtered_text, filtered_key):
-    times=len(filtered_text)//len(filtered_key)+1
-    key = (times*filtered_key)[:len(filtered_text)]
-    return key
+def generateKey(filtered_cipher, filtered_key):
+    times=len(filtered_cipher)//len(filtered_key)+1
+    cipher_key = (times*filtered_key)[:len(filtered_cipher)]
+    return cipher_key
 
 # Find the best match for the i first characters, assuming cost has
 # been built for the i-1 first characters.
@@ -71,30 +80,36 @@ def infer_spaces(s):
 
     return " ".join(reversed(out))
 
-def decoder(minrange, maxrange, filtered_text, filtered_key, runes, letters, d):
+def decoder(minrange, maxrange, filtered_cipher, filtered_key, runes, letters, d, reverse_mode):
 
     #Shift through the key, generate it, decrypt the page, estimate spaces, check if the output is english and output only that
     #change the first number in range if you want to start from a different cycle
 
+    #Set data path
+    if reverse_mode == 0:
+        data_path = "data_normal_key/"
+    else:
+        data_path = "data_reverse_key/"
+
     for cycle in range(minrange, maxrange):
-        my_file = Path("data_normal_key/" + str(cycle) + ".txt")
+        my_file = Path(str(data_path) + str(cycle) + ".txt")
         if my_file.is_file() is True:
             pass
         else:
-            cipher_key = filtered_key[cycle:]
-            cipher_key = generateKey(filtered_text, cipher_key)
+            #cipher_key = filtered_key[cycle:]
+            cipher_key = generateKey(filtered_cipher, filtered_key[cycle:])
 
             decrypted_pages = []
             idx = 0
-            while idx < len(filtered_text):
-                decrypted_index = (runes.index(filtered_text[idx]) - runes.index(cipher_key[idx])  +29) % 29
+            while idx < len(filtered_cipher):
+                decrypted_index = (runes.index(filtered_cipher[idx]) - runes.index(cipher_key[idx])  +29) % 29
                 decrypted_pages += letters[decrypted_index]
                 idx += 1
 
             decrypted_pages = "".join(decrypted_pages)
             decrypted_pages = infer_spaces(decrypted_pages.lower())
             newt = ""
-            with open("data_normal_key/" + str(cycle) + ".txt", "w") as file:
+            with open(str(data_path) + str(cycle) + ".txt", "w") as file:
                 for word in decrypted_pages.split(" "):
                     if d.check(word) is True:
                         newt = newt + word + " "
@@ -102,18 +117,17 @@ def decoder(minrange, maxrange, filtered_text, filtered_key, runes, letters, d):
             print(cycle)
     print("done")
 
+
 #Start threading, thanks Taiiwo
 
 num1 = 0
 num2 = len(filtered_key)
-threads = 4
 i = threads
 
-
 for i in range(threads, 0, -1):
-    minrange = round(num1 + ((num2 - num1) / threads) * (i - 1))
-    maxrange = round(num1 + ((num2 - num1) / threads) * i)
-    Thread(target=decoder, args=(minrange, maxrange, filtered_text, filtered_key, runes, letters, d)).start()
+    minrange = num1 + ((num2 - num1) // threads) * (i - 1)
+    maxrange = num1 + ((num2 - num1) // threads) * i
+    Thread(target=decoder, args=(minrange, maxrange, filtered_cipher, filtered_key, runes, letters, d, reverse_mode)).start()
 while True:
     time.sleep(1)
 
