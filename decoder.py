@@ -3,17 +3,18 @@ import enchant, sys, time, math
 from math import log
 from threading import Thread
 from pathlib import Path
+from pybar import *
 
 #Running key shift decoder for Cicada 3301
 
 #Read in the dictionary for english check in the end
 d = enchant.Dict("en_US")
 
-#Number of threads to use
-threads = 4
-
 #Choose key mode (0 = normal key, 1 = reversed key)
-reverse_mode = 0
+reverse_mode = input("Choose the key mode (0 = normal key, 1 = reversed key): ")
+
+#Number of threads to use
+threads = int(input("Number of threads to use: "))
 
 #Runes and corresponding letters
 runes = ['ᚠ', 'ᚢ', 'ᚦ', 'ᚩ', 'ᚱ', 'ᚳ', 'ᚷ', 'ᚹ', 'ᚻ', 'ᚾ', 'ᛁ', 'ᛄ', 'ᛇ', 'ᛈ', 'ᛉ', 'ᛋ', 'ᛏ', 'ᛒ', 'ᛖ', 'ᛗ', 'ᛚ', 'ᛝ', 'ᛟ', 'ᛞ', 'ᚪ', 'ᚫ', 'ᚣ', 'ᛡ', 'ᛠ']
@@ -31,10 +32,10 @@ wordcost = dict((k, log((i+1)*log(len(words)))) for i,k in enumerate(words))
 maxword = max(len(x) for x in words)
 
 #Reverse key if reverse_mode is enabled
-if reverse_mode == 0:
-    pass
-else:
+if reverse_mode == "1":
     key = "".join(reversed(key))
+else:
+    pass
 
 #Filter the LP (no spaces, only runes)
 filtered_cipher = []
@@ -80,21 +81,23 @@ def infer_spaces(s):
 
     return " ".join(reversed(out))
 
-def decoder(minrange, maxrange, filtered_cipher, filtered_key, runes, letters, d, reverse_mode):
+def decoder(minrange, maxrange, filtered_cipher, filtered_key, runes, letters, d, reverse_mode, tracker):
 
     #Shift through the key, generate it, decrypt the page, estimate spaces, check if the output is english and output only that
     #change the first number in range if you want to start from a different cycle
 
+    yikes = Tracker(max= maxrange - minrange)
+
     #Set data path
-    if reverse_mode == 0:
-        data_path = "data_normal_key/"
-    else:
+    if reverse_mode == "1":
         data_path = "data_reverse_key/"
+    else:
+        data_path = "data_normal_key/"
 
     for cycle in range(minrange, maxrange):
         my_file = Path(str(data_path) + str(cycle) + ".txt")
         if my_file.is_file() is True:
-            pass
+            tracker.next()
         else:
             #cipher_key = filtered_key[cycle:]
             cipher_key = generateKey(filtered_cipher, filtered_key[cycle:])
@@ -114,21 +117,38 @@ def decoder(minrange, maxrange, filtered_cipher, filtered_key, runes, letters, d
                     if d.check(word) is True:
                         newt = newt + word + " "
                 file.write(newt)
-            print(cycle)
-    print("done")
+                tracker.next()
+    bar.done("Finished!")
 
 
-#Start threading, thanks Taiiwo
+#Start threading and progress bars, thanks Taiiwo
 
 num1 = 0
 num2 = len(filtered_key)
 i = threads
 
+barlength = len(filtered_key)//threads
+bar = PyBar(max = 1, poll=0)
+trackers = []
 for i in range(threads, 0, -1):
     minrange = num1 + ((num2 - num1) // threads) * (i - 1)
     maxrange = num1 + ((num2 - num1) // threads) * i
-    Thread(target=decoder, args=(minrange, maxrange, filtered_cipher, filtered_key, runes, letters, d, reverse_mode)).start()
+    tracker = Tracker(max = maxrange - minrange)
+    trackers.append(tracker)
+    Thread(target=decoder, args=(minrange, maxrange, filtered_cipher, filtered_key, runes, letters, d, reverse_mode, tracker)).start()
+
+
+
 while True:
+    bar_items = []
+    for i in range(threads):
+        tracker = trackers[i]
+        bar_items.append(bar.bar(tracker=tracker))
+        bar_items.append(bar.percent(tracker=tracker))
+        bar_items.append(bar.eta(tracker=tracker))
+
     time.sleep(1)
+    bar.update(*bar_items)
+
 
 #There better be some data cause the last time I ran 16k cycles I messed up the key generation
