@@ -1,4 +1,3 @@
-from nltk import everygrams
 import enchant, sys, time, math
 from math import log
 from threading import Thread
@@ -86,22 +85,24 @@ def decoder(minrange, maxrange, filtered_cipher, filtered_key, runes, letters, d
     #Shift through the key, generate it, decrypt the page, estimate spaces, check if the output is english and output only that
     #change the first number in range if you want to start from a different cycle
 
-    yikes = Tracker(max= maxrange - minrange)
-
     #Set data path
     if reverse_mode == "1":
         data_path = "data_reverse_key/"
     else:
         data_path = "data_normal_key/"
 
+    #Main loop for decoding
     for cycle in range(minrange, maxrange):
         my_file = Path(str(data_path) + str(cycle) + ".txt")
+
+        #Check if an output file already exists, if it does, skip it and progress the bar, otherwise decode
         if my_file.is_file() is True:
             tracker.next()
         else:
-            #cipher_key = filtered_key[cycle:]
+            #Generate cipher key
             cipher_key = generateKey(filtered_cipher, filtered_key[cycle:])
 
+            #Decoding
             decrypted_pages = []
             idx = 0
             while idx < len(filtered_cipher):
@@ -109,6 +110,7 @@ def decoder(minrange, maxrange, filtered_cipher, filtered_key, runes, letters, d
                 decrypted_pages += letters[decrypted_index]
                 idx += 1
 
+            #Try to estimate where spaces should be, add them, do a dictionary check, save the output and progress the bar
             decrypted_pages = "".join(decrypted_pages)
             decrypted_pages = infer_spaces(decrypted_pages.lower())
             newt = ""
@@ -121,15 +123,18 @@ def decoder(minrange, maxrange, filtered_cipher, filtered_key, runes, letters, d
     bar.done("Finished!")
 
 
-#Start threading and progress bars, thanks Taiiwo
-
+#Start threading and progress bars
+#Threading stuff
 num1 = 0
 num2 = len(filtered_key)
 i = threads
 
+#Progress bar stuff
 barlength = len(filtered_key)//threads
 bar = PyBar(max = 1, poll=0)
 trackers = []
+
+#Calculate range for thread and make a tracker for that thread
 for i in range(threads, 0, -1):
     minrange = num1 + ((num2 - num1) // threads) * (i - 1)
     maxrange = num1 + ((num2 - num1) // threads) * i
@@ -137,18 +142,19 @@ for i in range(threads, 0, -1):
     trackers.append(tracker)
     Thread(target=decoder, args=(minrange, maxrange, filtered_cipher, filtered_key, runes, letters, d, reverse_mode, tracker)).start()
 
+#Add all the stuff bar.update() has to update
+bar_items = []
+for i in range(threads):
+    tracker = trackers[i]
+    bar_items.append(bar.bar(tracker=tracker))
+    bar_items.append(bar.percent(tracker=tracker))
+    bar_items.append(bar.eta(tracker=tracker))
 
-
+#Update the bars
 while True:
-    bar_items = []
-    for i in range(threads):
-        tracker = trackers[i]
-        bar_items.append(bar.bar(tracker=tracker))
-        bar_items.append(bar.percent(tracker=tracker))
-        bar_items.append(bar.eta(tracker=tracker))
-
     time.sleep(1)
     bar.update(*bar_items)
 
 
 #There better be some data cause the last time I ran 16k cycles I messed up the key generation
+#Special thanks to mortlach and Taiwoo
